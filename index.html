@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turing Machine Visualizer</title>
+<style>
+:root{--bg:#fff;--panel:#fff;--ink:#14181f;--mute:#586272;--line:#c9d0da;--acc:#1c4ed8;--ok:#17724a;--bad:#b42318;--cell:#fff;--hl:#1c4ed8;--hlink:#fff;--cur:#d6e2ff;
+--serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--panel:#0d1117;--ink:#e6eaf0;--mute:#97a3b4;--line:#2b3441;--acc:#7da4ff;--ok:#4fd18b;--bad:#ff8a7d;--cell:#121821;--hl:#7da4ff;--hlink:#0d1117;--cur:#22345f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{max-width:960px;margin:0 auto;padding:36px 20px 8px}
+header h1{margin:0;font:600 30px/1.15 var(--serif);letter-spacing:-.01em}
+header p{margin:8px 0 0;color:var(--mute);max-width:62ch}
+main{max-width:960px;margin:0 auto;padding:12px 20px 48px;display:grid;gap:10px}
+section{border-top:1px solid var(--line);padding:16px 0 6px;min-width:0}
+h2{margin:0 0 10px;font:600 17px/1.3 var(--serif)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button,select,input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:5px 11px}
+button{cursor:pointer;border-color:var(--ink)}
+button:hover:not(:disabled){background:var(--cur)}
+button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
+button.p{background:var(--acc);border-color:var(--acc);color:var(--hlink);font-weight:600}
+button.p:hover:not(:disabled){background:var(--acc);filter:brightness(1.12)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+input[type=text]{font-family:var(--mono);min-width:240px}
+input[type=range]{padding:0;accent-color:var(--acc)}
+.mono{font-family:var(--mono)}
+#tapewrap{overflow-x:auto;overflow-y:hidden;position:relative;padding:30px 2px 28px}
+#tape{display:flex;width:max-content;margin:0 auto}
+.cell{width:44px;height:44px;text-align:center;border:1.5px solid var(--ink);border-left-width:0;background:var(--cell);line-height:41px;font:22px/41px var(--mono);position:relative}
+.cell:first-child{border-left-width:1.5px}
+.cell.first{border-left-width:5px}
+.cell i{position:absolute;bottom:-20px;left:0;right:0;font:11px/1 var(--mono);color:var(--mute)}
+.cell.h{background:var(--hl);color:var(--hlink);font-weight:700}
+.cell.h::before{content:"";position:absolute;top:-11px;left:50%;margin-left:-6px;border:6px solid transparent;border-top:8px solid var(--acc);border-bottom:0}
+.stats{display:flex;gap:28px;flex-wrap:wrap;margin:14px 0 12px}
+.stats div span{display:block;font-size:12px;color:var(--mute)}
+.stats div b{font:600 21px/1.3 var(--mono)}
+#status.accept{color:var(--ok)}#status.reject,#status.limit{color:var(--bad)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+@media (max-width:720px){.two{grid-template-columns:1fr;gap:10px}}
+textarea{width:100%;height:260px;font:13px/1.5 var(--mono);resize:vertical}
+#rules{height:260px;overflow:auto;font:13px/1.5 var(--mono);border-left:1px solid var(--line);padding:2px 0}
+#rules div{padding:0 10px;white-space:pre;border-left:3px solid transparent;margin-left:-1px}
+#rules div.on{background:var(--cur);border-left-color:var(--acc)}
+#err{color:var(--bad);font-size:13px;min-height:20px}
+#diagram{width:100%;height:auto;display:block}
+#diagram .node{fill:var(--cell);stroke:var(--ink);stroke-width:1.5}
+#diagram .node.cur{fill:var(--cur);stroke:var(--acc);stroke-width:2.5}
+#diagram .node.rej{stroke-dasharray:4 3}
+#diagram .edge{fill:none;stroke:var(--ink);stroke-width:1.3}
+#diagram .edge.on{stroke:var(--acc);stroke-width:2.6}
+#diagram text{fill:var(--ink);font:12px var(--mono);text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
+#diagram .sn{font-size:13px;stroke:none}
+canvas{width:100%;height:280px;display:block}
+small,.note{color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<header><h1>Turing Machine Visualizer</h1><p>Step through a machine and watch the tape, the head and the step count. A transition <span class="mono">a → b, D</span> reads a, writes b and moves the head D. The tape is infinite to the right.</p></header>
+<main>
+<section>
+  <div class="row">
+    <label>Machine <select id="preset"></select></label>
+    <label>Input <input type="text" id="input" spellcheck="false"></label>
+    <button id="load" class="p">Load</button>
+    <small id="inlen"></small>
+  </div>
+</section>
+
+<section>
+  <div id="tapewrap"><div id="tape" aria-label="Tape"></div></div>
+  <div class="stats">
+    <div><span>State</span><b id="state">–</b></div>
+    <div><span>Steps</span><b id="steps">0</b></div>
+    <div><span>Head position</span><b id="pos">0</b></div>
+    <div><span>Result</span><b id="status">ready</b></div>
+  </div>
+  <div class="row">
+    <button id="step">Step</button>
+    <button id="run" class="p">Run</button>
+    <button id="reset">Reset</button>
+    <label>Speed <input type="range" id="speed" min="1" max="100" value="40"></label>
+  </div>
+</section>
+
+<section>
+  <h2>State diagram</h2>
+  <svg id="diagram" viewBox="0 0 860 470" role="img" aria-label="State diagram"></svg>
+  <small>Shaded = current state, blue arrow = transition just taken, double circle = accept, dashed = reject.</small>
+</section>
+
+<div class="two">
+  <section>
+    <h2>Machine definition</h2>
+    <textarea id="def" spellcheck="false" aria-label="Machine definition"></textarea>
+    <div id="err"></div>
+    <small>One edge per line: <span class="mono">q0 -> q1 : 0 -> 1, R</span> means "from q0 to q1, read 0, write 1, move right". The shorthand <span class="mono">0 -> R</span> (keep the symbol) also works and is shown in full. <span class="mono">b</span> is blank. A missing transition rejects. Anything after <span class="mono">//</span> is a comment. Edit, then press Load.</small>
+  </section>
+  <section>
+    <h2>Transitions</h2>
+    <div id="rules"></div>
+    <small>The rule that just fired is highlighted.</small>
+  </section>
+</div>
+
+<section>
+  <h2>Steps vs. input length</h2>
+  <div class="row">
+    <label>Largest size n <input type="number" id="maxn" value="30" min="2" max="200" style="width:80px"></label>
+    <button id="measure" class="p">Measure</button>
+    <small id="fit"></small>
+  </div>
+  <canvas id="chart" aria-label="Chart of steps against input length"></canvas>
+  <p class="note">Runs the machine in the definition box once for each n = 1…N, using the selected preset's input generator (for Custom, the input is n zeros). This measures steps on one input per length, which shows the trend for that family of inputs. It does not prove a worst-case bound.</p>
+</section>
+</main>
+
+<script>
+const PRESETS={
+ "Even number of 0s (linear)":{gen:n=>"01".repeat(n)+(n%2?"0":""),def:
+`// accepts strings with an even number of 0s
+start: q0
+accept: qa
+reject: qr
+q0 -> q1 : 0 -> 0, R
+q0 -> q0 : 1 -> 1, R
+q0 -> qa : b -> b, R
+q1 -> q0 : 0 -> 0, R
+q1 -> q1 : 1 -> 1, R
+// q1 reading b has no transition, so it rejects`},
+ "0^n 1^n (quadratic)":{gen:n=>"0".repeat(n)+"1".repeat(n),def:
+`// cross off a 0 (x), then the matching 1 (y), repeat
+start: q0
+accept: qa
+reject: qr
+q0 -> q1 : 0 -> x, R
+q0 -> q3 : y -> y, R
+q0 -> qa : b -> b, R
+q1 -> q1 : 0 -> 0, R
+q1 -> q1 : y -> y, R
+q1 -> q2 : 1 -> y, L
+q2 -> q2 : 0 -> 0, L
+q2 -> q2 : y -> y, L
+q2 -> q0 : x -> x, R
+q3 -> q3 : y -> y, R
+q3 -> qa : b -> b, R`},
+ "w#w (quadratic)":{gen:n=>{let w="";for(let i=0;i<n;i++)w+=i%3==1?"1":"0";return w+"#"+w},def:
+`// compares the string before # with the string after it
+// q0: remember and cross off the leftmost unmarked bit
+start: q0
+accept: qa
+reject: qr
+q0 -> r0 : 0 -> x, R
+q0 -> r1 : 1 -> x, R
+q0 -> v : # -> #, R
+// r0/r1: walk right to #
+r0 -> r0 : 0 -> 0, R
+r0 -> r0 : 1 -> 1, R
+r0 -> c0 : # -> #, R
+r1 -> r1 : 0 -> 0, R
+r1 -> r1 : 1 -> 1, R
+r1 -> c1 : # -> #, R
+// c0/c1: skip x's, compare with remembered bit
+c0 -> c0 : x -> x, R
+c0 -> m : 0 -> x, L
+c1 -> c1 : x -> x, R
+c1 -> m : 1 -> x, L
+// m: go left to #, then n: left to x
+m -> m : 0 -> 0, L
+m -> m : 1 -> 1, L
+m -> m : x -> x, L
+m -> n : # -> #, L
+n -> n : 0 -> 0, L
+n -> n : 1 -> 1, L
+n -> q0 : x -> x, R
+// v: everything on the right must be crossed off
+v -> v : x -> x, R
+v -> qa : b -> b, R`},
+ "Custom":{gen:n=>"0".repeat(n),def:
+`start: q0
+accept: qa
+reject: qr
+q0 -> q0 : 0 -> 0, R
+q0 -> qa : b -> b, R`}
+};
+const DEFAULT_IN={"Even number of 0s (linear)":"0101","0^n 1^n (quadratic)":"0011","w#w (quadratic)":"010#010","Custom":"000"};
+const LIMIT=200000, $=id=>document.getElementById(id);
+let M=null,S=null,timer=null,lastRule=null,genFn=PRESETS["Even number of 0s (linear)"].gen;
+
+function parse(text){
+  const m={start:null,accept:null,reject:null,d:new Map(),lines:[],edges:[]};
+  text.split("\n").forEach((raw,i)=>{
+    const line=raw.replace(/\/\/.*$/,"").trim(); if(!line)return;
+    let t=line.match(/^(start|accept|reject)\s*:\s*(\S+)$/);
+    if(t){m[t[1]]=t[2];return}
+    t=line.match(/^(\S+?)\s*(?:->|→)\s*(\S+?)\s*:\s*(.+)$/);
+    if(!t)throw new Error(`Line ${i+1}: expected "from -> to : read -> write, move"`);
+    const [,from,to,label]=t, sides=label.split(/->|→/).map(x=>x.trim());
+    if(sides.length!==2)throw new Error(`Line ${i+1}: label should look like  0 -> 1, R`);
+    const read=sides[0], act=sides[1].split(",").map(x=>x.trim());
+    let w,mv;
+    if(act.length===2)[w,mv]=act; else if(act.length===1){mv=act[0];w=read} else throw new Error(`Line ${i+1}: after the arrow write "symbol, L/R" or just "L/R"`);
+    if(!/^[LR]$/.test(mv))throw new Error(`Line ${i+1}: move must be L or R`);
+    if(read.length!==1||w.length!==1)throw new Error(`Line ${i+1}: tape symbols are single characters`);
+    const k=from+"\u0000"+read;
+    if(m.d.has(k))throw new Error(`Line ${i+1}: duplicate transition for (${from}, ${read})`);
+    m.d.set(k,{w,mv,nx:to,idx:m.lines.length}); m.lines.push(`${from} -> ${to} : ${read} -> ${w}, ${mv}`); m.edges.push({from,to,label:`${read} → ${w}, ${mv}`});
+  });
+  if(!m.start||!m.accept||!m.reject)throw new Error("Need start:, accept: and reject: lines");
+  return m;
+}
+function init(input){
+  if(input.includes("b"))throw new Error("b is the blank symbol, so it can't appear in the input");
+  S={tape:input.split(""),head:0,state:M.start,steps:0,status:"ready"};
+  if(!S.tape.length)S.tape=["b"];
+  lastRule=null;
+}
+function stepOnce(s,m){
+  if(s.status==="accept"||s.status==="reject"||s.status==="limit")return false;
+  if(s.state===m.accept){s.status="accept";return false}
+  if(s.state===m.reject){s.status="reject";return false}
+  const sym=s.tape[s.head]??"b", r=m.d.get(s.state+"\u0000"+sym);
+  if(!r){s.status="reject";return false}
+  s.tape[s.head]=r.w; s.state=r.nx; s.steps++;
+  s.head=r.mv==="R"?s.head+1:Math.max(0,s.head-1);
+  while(s.head>=s.tape.length)s.tape.push("b");
+  s.status="running";
+  if(s.state===m.accept)s.status="accept"; else if(s.state===m.reject)s.status="reject";
+  else if(s.steps>=LIMIT)s.status="limit";
+  s.rule=r.idx; return true;
+}
+function buildDiagram(m){
+  const esc=t=>t.replace(/&/g,"&amp;").replace(/</g,"&lt;"),cx=430,cy=232,r=24,names=[],add=x=>{if(!names.includes(x))names.push(x)};
+  add(m.start);m.edges.forEach(e=>{add(e.from);add(e.to)});add(m.accept);
+  const n=names.length,rx=Math.min(300,90+n*26),ry=Math.min(135,60+n*14),pos={};
+  names.forEach((nm,i)=>{const a=Math.PI+2*Math.PI*i/n;pos[nm]={x:cx+rx*Math.cos(a),y:cy+ry*Math.sin(a)}});
+  const groups=new Map();
+  m.edges.forEach(e=>{const k=e.from+">"+e.to;if(!groups.has(k))groups.set(k,{from:e.from,to:e.to,l:[]});groups.get(k).l.push(e.label)});
+  const rot=(u,a)=>({x:u.x*Math.cos(a)-u.y*Math.sin(a),y:u.x*Math.sin(a)+u.y*Math.cos(a)});
+  const norm=v=>{const d=Math.hypot(v.x,v.y)||1;return{x:v.x/d,y:v.y/d}};
+  const text=(x,y,lines)=>`<text x="${x.toFixed(1)}" y="${(y-(lines.length-1)*6).toFixed(1)}">${lines.map((t,i)=>`<tspan x="${x.toFixed(1)}" dy="${i?12:0}">${esc(t)}</tspan>`).join("")}</text>`;
+  let h='<defs><marker id="ar" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>',e="",t="";
+  groups.forEach((g,k)=>{
+    const A=pos[g.from],B=pos[g.to];
+    if(g.from===g.to){
+      let u=g.from===m.start?{x:0,y:-1}:norm({x:A.x-cx,y:A.y-cy});
+      const a=rot(u,-.5),b=rot(u,.5),c1=rot(u,-.75),c2=rot(u,.75),L=r+46;
+      e+=`<path class="edge" data-e="${k}" marker-end="url(#ar)" d="M${A.x+r*a.x} ${A.y+r*a.y} C${A.x+L*c1.x} ${A.y+L*c1.y} ${A.x+L*c2.x} ${A.y+L*c2.y} ${A.x+(r+3)*b.x} ${A.y+(r+3)*b.y}"/>`;
+      t+=text(A.x+(r+52)*u.x,A.y+(r+52)*u.y+4,g.l);
+    }else{
+      const d=norm({x:B.x-A.x,y:B.y-A.y}),p={x:-d.y,y:d.x},C={x:(A.x+B.x)/2+p.x*26,y:(A.y+B.y)/2+p.y*26};
+      const s=norm({x:C.x-A.x,y:C.y-A.y}),f=norm({x:C.x-B.x,y:C.y-B.y}),S1={x:A.x+s.x*r,y:A.y+s.y*r},E1={x:B.x+f.x*(r+3),y:B.y+f.y*(r+3)};
+      e+=`<path class="edge" data-e="${k}" marker-end="url(#ar)" d="M${S1.x} ${S1.y} Q${C.x} ${C.y} ${E1.x} ${E1.y}"/>`;
+      t+=text(.25*S1.x+.5*C.x+.25*E1.x+p.x*8,.25*S1.y+.5*C.y+.25*E1.y+p.y*8+4,g.l);
+    }
+  });
+  const P=pos[m.start];e+=`<path class="edge" marker-end="url(#ar)" d="M${P.x-r-40} ${P.y} L${P.x-r-3} ${P.y}"/>`;
+  names.forEach(nm=>{const q=pos[nm],cls=nm===m.reject?" rej":"";
+    h+=`<g><circle class="node${cls}" data-s="${esc(nm)}" cx="${q.x}" cy="${q.y}" r="${r}"/>${nm===m.accept?`<circle class="node" style="fill:none;pointer-events:none" cx="${q.x}" cy="${q.y}" r="${r-5}"/>`:""}<text class="sn" x="${q.x}" y="${q.y+4}">${esc(nm)}</text></g>`});
+  $("diagram").innerHTML=h.replace("</defs>","</defs>"+e)+t;
+}
+function draw(){
+  const wrap=$("tapewrap"),end=Math.min(S.tape.length+8,S.head+800),start=Math.max(0,end-1500);let h="";
+  for(let i=start;i<end;i++)h+=`<div class="cell${i===0?" first":""}${i===S.head?" h":""}">${S.tape[i]??"b"}<i>${i}</i></div>`;
+  $("tape").innerHTML=h;
+  const hc=$("tape").querySelector(".h");
+  if(hc){const l=hc.offsetLeft,v=wrap.scrollLeft;if(l<v+44||l>v+wrap.clientWidth-110)wrap.scrollLeft=Math.max(0,l-wrap.clientWidth/2+22)}
+  $("state").textContent=S.state; $("steps").textContent=S.steps; $("pos").textContent=S.head;
+  const st=$("status"); st.className=S.status;
+  st.textContent={ready:"ready",running:"running",accept:"accept",reject:"reject",limit:"no halt in "+LIMIT+" steps"}[S.status];
+  document.querySelectorAll("#diagram [data-s]").forEach(el=>el.classList.toggle("cur",el.dataset.s===S.state));
+  const ed=M.edges[S.rule],ek=ed?ed.from+">"+ed.to:"";
+  document.querySelectorAll("#diagram [data-e]").forEach(el=>el.classList.toggle("on",el.dataset.e===ek));
+  document.querySelectorAll("#rules div").forEach((d,i)=>d.classList.toggle("on",i===S.rule));
+}
+function setStatusButtons(){const done=["accept","reject","limit"].includes(S.status);$("step").disabled=done;$("run").disabled=done&&!timer}
+function stop(){clearInterval(timer);timer=null;$("run").textContent="Run"}
+function tick(){
+  const per=Math.max(1,Math.round(+$("speed").value/20));
+  for(let i=0;i<per;i++)if(!stepOnce(S,M)){stop();break}
+  draw();setStatusButtons();
+}
+function load(){
+  stop();$("err").textContent="";
+  const oldM=M,oldS=S;
+  try{M=parse($("def").value);init($("input").value.trim());}
+  catch(e){M=oldM;S=oldS;$("err").textContent=e.message;return}
+  $("rules").innerHTML=M.lines.map(l=>`<div>${l.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div>`).join("");
+  $("inlen").textContent="length "+$("input").value.trim().length;
+  $("tapewrap").scrollLeft=0;buildDiagram(M);S.rule=-1;draw();setStatusButtons();
+}
+$("load").onclick=load;
+$("step").onclick=()=>{stop();stepOnce(S,M);draw();setStatusButtons()};
+$("reset").onclick=load;
+$("run").onclick=()=>{
+  if(timer){stop();return}
+  $("run").textContent="Pause";
+  timer=setInterval(tick,Math.max(8,520-$("speed").value*5));
+};
+$("speed").oninput=()=>{if(timer){clearInterval(timer);timer=setInterval(tick,Math.max(8,520-$("speed").value*5))}};
+$("input").addEventListener("keydown",e=>{if(e.key==="Enter")load()});
+window.addEventListener("resize",()=>S&&draw());
+
+const sel=$("preset");
+Object.keys(PRESETS).forEach(k=>sel.add(new Option(k,k)));
+sel.onchange=()=>{const p=PRESETS[sel.value];genFn=p.gen;$("def").value=p.def;$("input").value=DEFAULT_IN[sel.value];load()};
+
+function measure(){
+  let m;try{m=parse($("def").value)}catch(e){$("err").textContent=e.message;return}
+  const N=Math.min(200,Math.max(2,+$("maxn").value||30)),pts=[];
+  for(let n=1;n<=N;n++){
+    const inp=genFn(n),s={tape:inp.split(""),head:0,state:m.start,steps:0,status:"ready"};
+    while(stepOnce(s,m));
+    pts.push({x:inp.length,y:s.steps,st:s.status});
+  }
+  plot(pts);
+}
+function plot(pts){
+  $("fit").textContent="";
+  const c=$("chart"),dpr=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
+  c.width=w*dpr;c.height=h*dpr;const g=c.getContext("2d");g.scale(dpr,dpr);
+  const cs=getComputedStyle(document.documentElement),ink=cs.getPropertyValue("--ink"),mute=cs.getPropertyValue("--mute"),line=cs.getPropertyValue("--line"),acc=cs.getPropertyValue("--acc");
+  const L=56,R=14,T=12,B=34,mx=Math.max(...pts.map(p=>p.x)),my=Math.max(1,...pts.map(p=>p.y));
+  const X=x=>L+x/mx*(w-L-R),Y=y=>h-B-y/my*(h-T-B);
+  g.clearRect(0,0,w,h);g.font="12px system-ui";g.fillStyle=mute;g.strokeStyle=line;g.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=my*i/4;g.beginPath();g.moveTo(L,Y(y));g.lineTo(w-R,Y(y));g.stroke();g.textAlign="right";g.fillText(Math.round(y),L-6,Y(y)+4)}
+  g.textAlign="center";for(let i=0;i<=5;i++){const x=mx*i/5;g.fillText(Math.round(x),X(x),h-B+16)}
+  g.fillText("input length",L+(w-L-R)/2,h-6);
+  g.strokeStyle=acc;g.lineWidth=2;g.beginPath();pts.forEach((p,i)=>i?g.lineTo(X(p.x),Y(p.y)):g.moveTo(X(p.x),Y(p.y)));g.stroke();
+  g.fillStyle=acc;pts.forEach(p=>{g.beginPath();g.arc(X(p.x),Y(p.y),2.5,0,7);g.fill()});
+  const fit=$("fit"),ok=pts.filter(p=>p.st!=="limit"&&p.y>0),capped=pts.length-pts.filter(p=>p.st!=="limit").length;
+  const q=ok.filter(p=>p.x>=mx/2);
+  if(q.length>=3){
+    const lx=q.map(p=>Math.log(p.x)),ly=q.map(p=>Math.log(p.y)),mean=a=>a.reduce((u,v)=>u+v,0)/a.length,mX=mean(lx),mY=mean(ly);
+    const k=lx.reduce((u,v,i)=>u+(v-mX)*(ly[i]-mY),0)/lx.reduce((u,v)=>u+(v-mX)**2,0);
+    fit.textContent=`On these inputs, steps grow roughly like n^${k.toFixed(2)} (largest run: ${ok[ok.length-1].y} steps on length ${ok[ok.length-1].x}).`;
+  }else fit.textContent="Not enough halting runs to estimate a growth rate.";
+  if(capped)fit.textContent+=` ${capped} run(s) hit the ${LIMIT}-step limit and were left out of the estimate.`;
+}
+$("measure").onclick=measure;
+
+sel.value="Even number of 0s (linear)";sel.onchange();
+</script>
+</body>
+</html>
