@@ -12,9 +12,15 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
 header{max-width:960px;margin:0 auto;padding:36px 20px 8px}
 header h1{margin:0;font:600 30px/1.15 var(--serif);letter-spacing:-.01em}
-header p{margin:8px 0 0;color:var(--mute);max-width:62ch}
+header p{margin:10px 0 0;max-width:62ch}
+header .lead{font-size:17px;color:var(--ink)}
+header .key{font-size:15px;color:var(--mute)}
+header code{font:14px var(--mono);color:var(--ink);background:var(--cur);padding:1px 6px;border-radius:3px;white-space:nowrap}
 main{max-width:960px;margin:0 auto;padding:12px 20px 48px;display:grid;gap:10px}
 section{border-top:1px solid var(--line);padding:16px 0 6px;min-width:0}
+.key{display:grid;grid-template-columns:max-content 1fr;gap:3px 18px;margin:16px 0 0;font-size:14px;max-width:62ch}
+.key dt{color:var(--mute)}
+.key dd{margin:0}
 h2{margin:0 0 10px;font:600 17px/1.3 var(--serif)}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 button,select,input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:5px 11px}
@@ -59,7 +65,8 @@ small,.note{color:var(--mute);font-size:13px}
 </style>
 </head>
 <body>
-<header><h1>Turing Machine Visualizer</h1><p>Step through a machine and watch the tape, the head and the step count. A transition <span class="mono">a → b, D</span> reads a, writes b and moves the head D. The tape is infinite to the right.</p></header>
+<header><h1>Turing Machine Visualizer</h1><p>Run a Turing machine one step at a time and see how many steps it takes.</p>
+<dl class="key"><dt>Arrow label</dt><dd class="mono">read → write, move</dd><dt>Example</dt><dd class="mono">0 → x, R</dd><dt>Meaning</dt><dd>If the head sees 0, it writes x and then moves one cell right. L moves left. The tape is infinite to the right.</dd></dl></header>
 <main>
 <section>
   <div class="row">
